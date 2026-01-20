@@ -1,2 +1,0 @@
-timestamp,subscription_id,email,final_action,explanation_for_team,product,price
-2026-01-20T18:36:20.907579+00:00,723940428,aabrawner@gmail.com,CANCEL,DUPLICATE CLEANUP: Customer has two healthy plans. We removed this one to prevent double-billing and kept the one charging on 2026-02-10.,Streaming Membership (14D Free Trial),$24.99
