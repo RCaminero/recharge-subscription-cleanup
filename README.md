@@ -28,7 +28,6 @@ Customers with two active Recharge subscriptions caused by edge cases during sig
 - Manual review if both subscriptions show payment risk
 
 ## Scripts
-- dry_run_evaluate.py → Evaluate decisions, no API mutations
 - cancel_subscriptions.py → Execute safe cancellations
 - restore_subscriptions.py → Rollback using logs
 
