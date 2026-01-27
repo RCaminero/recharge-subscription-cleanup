@@ -16,9 +16,7 @@ def is_payment_valid(subscription):
       to avoid canceling healthy subscriptions by mistake.
     """
 
-    # -------------------------
-    # 1️⃣ ORIGINAL BUSINESS RULES (HARD FAILURES)
-    # -------------------------
+    # ORIGINAL BUSINESS RULES
     if subscription.get("max_retries_reached") is True:
         return False
 
@@ -55,9 +53,7 @@ def is_payment_valid(subscription):
         print(f"❌ Invalid next_charge_scheduled_at format: {next_charge} | {e}")
         return False
 
-    # -------------------------
-    # 2️⃣ REAL PAYMENT METHOD VALIDATION (SAFE MODE)
-    # -------------------------
+    # PAYMENT METHOD VALIDATION
     address_id = subscription.get("address_id")
 
     if not address_id:
@@ -78,7 +74,6 @@ def is_payment_valid(subscription):
         pm_status = payment_method.get("status", "").lower()
 
         # Recharge official statuses:
-        # unvalidated → OK (don't cancel)
         # valid       → OK
         # invalid     → BAD
         # empty       → BAD
@@ -86,15 +81,14 @@ def is_payment_valid(subscription):
         if pm_status in ["invalid", "empty"]:
             return False
 
-        if pm_status in ["valid", "unvalidated"]:
+        if pm_status in ["valid"]:
             return True
 
-        # Unknown status → be safe
         print(f"⚠️ Unknown payment status '{pm_status}', assuming VALID")
         return True
 
     except Exception as e:
-        # 🔥 CRITICAL: NEVER auto-cancel if Recharge blocks API calls
+        # NEVER auto-cancel if Recharge blocks API calls
         print(
             f"⚠️ Payment lookup failed for sub {subscription.get('id')} | {e} | Assuming VALID"
         )
