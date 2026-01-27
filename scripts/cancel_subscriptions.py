@@ -4,10 +4,13 @@ from recharge.cancel import cancel_subscription
 from recharge.payment import is_payment_valid
 from datetime import datetime, timezone
 
+# 🔁 SIMULATION MODE
+DRY_RUN = True  # True = Simulation (not cancel) | False = Real Cancelation
+
 # 1️⃣ Load the CSV file with subscriptions
 df = pd.read_csv("data/subscriptions.csv")
 logs = []
-manual_logs = []  # 🆕 For manual review cases
+manual_logs = []  # For manual review cases
 
 print(f"Total rows loaded: {len(df)}")
 
@@ -36,9 +39,11 @@ for user, subs in grouped:
             price = sub.get("price", 0)
             product = sub.get("product_title", "Product")
             next_ch = sub.get("next_charge_scheduled_at", "No date")
+            sku = sub.get("sku", "UNKNOWN")
 
             records.append({
                 "id": row.subscription_id,
+                "sku": sku,
                 "csv_action": row.action,     # KEEP or CANCEL from CSV
                 "payment_valid": valid,       # True / False based on payment health
                 "price": price,
@@ -47,7 +52,7 @@ for user, subs in grouped:
                 "status": p_status
             })
 
-            print(f"ID: {row.subscription_id} | Payment valid: {valid} | Status: {p_status}")
+            print(f"ID: {row.subscription_id} | SKU: {sku} | Payment valid: {valid} | Status: {p_status}")
 
         except Exception as e:
             print(f"❌ Error fetching ID {row.subscription_id}: {e}")
@@ -67,9 +72,9 @@ for user, subs in grouped:
             "reason": f"All subscriptions marked as {csv_actions[0]}",
             "details": csv_actions
         })
-        continue  # ⛔ Skip this user entirely
+        continue
 
-    # KEEP invalid but CANCEL valid → do nothing
+    # KEEP invalid but CANCEL valid → manual review
     keep_subs = [r for r in records if r["csv_action"] == "KEEP"]
     cancel_subs = [r for r in records if r["csv_action"] == "CANCEL"]
 
@@ -87,7 +92,7 @@ for user, subs in grouped:
                 for r in records
             ]
         })
-        continue  # ⛔ Skip cancellation logic for this user
+        continue
 
     # 4️⃣ Separate subscriptions with valid payments
     valid_subs = [r for r in records if r["payment_valid"]]
@@ -104,7 +109,7 @@ for user, subs in grouped:
                 action_taken = "CANCEL"
                 human_reason = (
                     f"BOTH PAYMENTS FAILED: Both subscriptions have payment issues. "
-                    f"We kept the other ${kept['price']} plan for manual recovery and cancelled this ${r['price']} plan "
+                    f"We kept the other ${kept['id']} plan for manual recovery and cancelled this ${r['id']} plan "
                     f"to avoid broken duplicates."
                 )
 
@@ -114,8 +119,8 @@ for user, subs in grouped:
                 action_taken = "CANCEL"
                 other = valid_subs[0]
                 human_reason = (
-                    f"PAYMENT ISSUES: The bank rejected charges for this ${r['price']} plan. "
-                    f"We kept the healthy ${other['price']} plan instead."
+                    f"PAYMENT ISSUES: The bank rejected charges for this ${r['id']} plan. "
+                    f"We kept the healthy ${other['id']} plan instead."
                 )
 
         # 🟢 CASE C: Both valid → use CSV rule
@@ -128,10 +133,13 @@ for user, subs in grouped:
                     f"We removed this one to prevent double-billing and kept the one charging on {kept['next_charge']}."
                 )
 
-        # 6️⃣ Execute cancellation and store log
+        # 6️⃣ Execute cancellation (or simulate) and store log
         if action_taken == "CANCEL":
-            print(f"⚠️ Action: Cancelling {r['id']} - {human_reason[:60]}...")
-            cancel_subscription(r["id"], human_reason)
+            if DRY_RUN:
+                print(f"🧪 [SIMULATION] Would cancel subscription {r['id']} - {human_reason[:60]}...")
+            else:
+                print(f"⚠️ Action: Cancelling {r['id']} - {human_reason[:60]}...")
+                cancel_subscription(r["id"], human_reason)
 
             logs.append({
                 "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -140,7 +148,8 @@ for user, subs in grouped:
                 "final_action": "CANCEL",
                 "explanation_for_team": human_reason,
                 "product": r["product"],
-                "price": f"${r['price']}"
+                "price": f"${r['price']}",
+                "mode": "SIMULATION" if DRY_RUN else "REAL"
             })
 
 # 7️⃣ Save final cancellation log
